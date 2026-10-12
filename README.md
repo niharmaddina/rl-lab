@@ -28,7 +28,11 @@ CartPole 100k row was trained with `--eval-every 5000`, which runs that same
 evaluation every 5,000 steps during training and keeps the checkpoint with
 the highest mean as `best_model.zip`; `Best-checkpoint` is that checkpoint
 re-evaluated on the same 20 seeds, with the step at which it was saved. The
-other rows were run before `--eval-every` existed and show a dash. The table
+other rows were run before `--eval-every` existed and show a dash. `Wall
+time / seed` is the training wall time; for the CartPole 100k row it includes
+the 20 periodic evaluations (6-11 s of the 61-71 s per seed, recorded
+separately as `in_training_eval_wall_time_s` in `results/summary.json`), so
+that row is not a like-for-like timing against the 50k row. The table
 is the verbatim output of `rl_lab.summarize` (`tests/test_results.py` checks
 that it matches `results/summary.json`, which also holds the per-seed and
 per-episode numbers).
@@ -95,9 +99,12 @@ of its best checkpoint (CartPole 100k: 40k, 35k and 35k steps).
   more gradient steps after that evaluation, which moves the held-out score
   from 135.0 to 42.6 (seed 0), 76.3 to 75.0 (seed 1) and 136.4 to 200.7
   (seed 2). The periodic evaluation only reads the policy, so the final
-  weights, Monitor logs and evaluation returns are identical to the earlier
-  run without it. The 20 evaluations cost 6-11 s of the 61-71 s of training
-  per seed.
+  weights, the episode returns and lengths in the Monitor logs, and the
+  evaluation returns are identical to the earlier run without it (checked
+  against the previous commit's `results/summary.json` and `curve.png`: the
+  per-seed finals match to the digit, and the curve regenerated from the new
+  Monitor logs without the ticks is byte-identical to the old figure). The
+  20 evaluations cost 6-11 s of the 61-71 s of training per seed.
 * **The 50k-step rerun shows the problem is the stopping point, not the
   budget.** Same kwargs, 50k steps. This is a separate run rather than the
   first half of the 100k one: `exploration_fraction: 0.16` is a fraction of
@@ -109,9 +116,12 @@ of its best checkpoint (CartPole 100k: 40k, 35k and 35k steps).
   collapsed to about 25 at 46k and climbed back to 176. The greedy policy in the
   final weights is not what the exploring training curve shows, and whatever
   weights are on disk when training stops are what gets evaluated. The
-  remedy is to keep the best checkpoint under periodic held-out evaluation,
-  which is what `--eval-every` does in the 100k row above, not to tune the
-  budget. This row was not re-run with it.
+  practical remedy is to keep the best checkpoint under periodic held-out
+  evaluation, which is what `--eval-every` does in the 100k row above, not
+  to tune the budget; it changes which weights are kept and reported, not
+  the instability of the training itself (the 100k bullet above shows the
+  held-out score falling back below 100 after each 500). This row was not
+  re-run with it.
 * **LunarLander-v3 / PPO converged on every seed.** The final policies score
   277.2, 277.5 and 280.8 (a spread of 1.6 across seeds), and every one of the
   60 evaluation episodes lands with a return above 250 (minimum 250.6, maximum
