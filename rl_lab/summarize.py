@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     entries = collect(Path(args.runs_root))
     if not entries:
-        print(f"no eval.json found under {args.runs_root}", file=sys.stderr)
+        print(f"no {args.runs_root}/<env>/<name>/seed_*/eval.json found (that layout is what train.py is given in the README)", file=sys.stderr)
         return 1
     doc = {"hardware": args.hardware, "experiments": entries}
     out = Path(args.out)

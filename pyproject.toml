@@ -20,6 +20,9 @@ dependencies = [
   "pyyaml>=6.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/niharmaddina/rl-lab"
+
 [project.optional-dependencies]
 box2d = ["gymnasium[box2d]>=1.0"]
 dev = ["pytest>=8"]
