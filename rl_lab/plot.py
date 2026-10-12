@@ -72,16 +72,15 @@ def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | No
     env = meta.get("env", run_dirs[0].parent.parent.name if len(run_dirs[0].parts) >= 3 else "")
     algo = meta.get("algo", "")
 
-    fig, ax = plt.subplots(figsize=(8, 4.5), dpi=150)
+    fig, ax = plt.subplots(figsize=(8, 4.8), dpi=150)
     fig.patch.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
 
+    # Seeds are identified in the legend rather than by end-of-line labels:
+    # converged seeds end at the same value and end labels would overprint.
     for i, (d, x, y) in enumerate(curves):
         color = SEED_COLORS[i % len(SEED_COLORS)]
-        label = d.name.replace("_", " ")
-        ax.plot(x, y, color=color, linewidth=1.2, alpha=0.9)
-        ax.annotate(label, xy=(x[-1], y[-1]), xytext=(4, 0), textcoords="offset points",
-                    fontsize=8, color=TEXT_SECONDARY, va="center")
+        ax.plot(x, y, color=color, linewidth=1.2, alpha=0.9, label=d.name.replace("_", " "))
 
     summary: dict = {"n_seeds": len(curves), "window": window}
     if len(curves) > 1:
@@ -91,9 +90,11 @@ def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | No
         mean, std = stack.mean(axis=0), stack.std(axis=0)
         ax.plot(grid, mean, color=TEXT_PRIMARY, linewidth=2.0, label=f"mean of {len(curves)} seeds")
         ax.fill_between(grid, mean - std, mean + std, color=TEXT_PRIMARY, alpha=0.08, linewidth=0)
-        ax.legend(loc="lower right", frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
         summary["final_mean_smoothed"] = float(mean[-1])
         summary["final_std_smoothed"] = float(std[-1])
+    # Legend below the axes so it can never cover the data.
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=min(4, len(curves) + 1),
+              frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
 
     if title is None:
         parts = [p for p in (env, algo.upper() if algo else "") if p]
@@ -110,7 +111,7 @@ def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | No
         ax.spines[side].set_color(GRID)
     ax.tick_params(colors=TEXT_SECONDARY, labelsize=9)
     ax.ticklabel_format(axis="x", style="plain")
-    ax.margins(x=0.08)
+    ax.margins(x=0.03)
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, facecolor=SURFACE)

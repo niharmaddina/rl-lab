@@ -18,13 +18,19 @@ import numpy as np
 
 
 def collect(runs_root: Path) -> list[dict]:
-    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    # One table row per (env, algo, timesteps budget); the run directory
+    # runs/<env>/<name>/seed_* is recorded so the row can be traced back.
+    groups: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
+    run_dirs: dict[tuple[str, str, int], str] = {}
     for f in sorted(runs_root.glob("*/*/seed_*/eval.json")):
         r = json.loads(f.read_text())
-        groups[(r["env"], r["algo"])].append(r)
+        key = (r["env"], r["algo"], int(r["timesteps"]))
+        groups[key].append(r)
+        run_dirs[key] = str(f.parent.parent.relative_to(runs_root))
 
     entries = []
-    for (env, algo), runs in sorted(groups.items()):
+    for key, runs in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1], -kv[0][2])):
+        env, algo, _ = key
         runs.sort(key=lambda r: r["seed"])
         per_seed_means = np.array([r["eval"]["mean_return"] for r in runs])
         pooled = np.concatenate([r["eval"]["returns"] for r in runs])
@@ -32,6 +38,7 @@ def collect(runs_root: Path) -> list[dict]:
         entries.append({
             "env": env,
             "algo": algo,
+            "run_dir": run_dirs[key],
             "seeds": [r["seed"] for r in runs],
             "timesteps": runs[0]["timesteps"],
             "n_envs": runs[0]["n_envs"],

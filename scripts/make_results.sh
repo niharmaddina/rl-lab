@@ -6,7 +6,9 @@ PY="${PYTHON:-python}"
 for envdir in runs/*/; do
   env="$(basename "$envdir")"
   for algodir in "$envdir"*/; do
-    "$PY" -m rl_lab.plot --runs "$algodir"seed_* --out "results/$env/curve.png" --window 20
+    name="$(basename "$algodir")"           # dqn / ppo -> curve.png; dqn-50k -> curve-dqn-50k.png
+    case "$name" in dqn|ppo) png="curve.png" ;; *) png="curve-$name.png" ;; esac
+    "$PY" -m rl_lab.plot --runs "$algodir"seed_* --out "results/$env/$png" --window 20
   done
 done
 "$PY" -m rl_lab.summarize --runs-root runs --out results/summary.json --hardware "${HARDWARE:-Apple M1 Pro, CPU}"
