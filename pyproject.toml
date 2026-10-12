@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-lab"
+version = "0.1.0"
+description = "Reproducible DQN and PPO baselines on Gymnasium tasks: seeds, configs, learning curves, results table"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Nihar Maddina" }]
+requires-python = ">=3.10"
+dependencies = [
+  "gymnasium>=1.0",
+  "stable-baselines3>=2.3",
+  "torch>=2.0",
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "matplotlib>=3.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+box2d = ["gymnasium[box2d]>=1.0"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+rl-train = "rl_lab.train:main"
+rl-evaluate = "rl_lab.evaluate:main"
+rl-plot = "rl_lab.plot:main"
+rl-summarize = "rl_lab.summarize:main"
+
+[tool.setuptools]
+packages = ["rl_lab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

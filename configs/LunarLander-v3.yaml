@@ -1,0 +1,26 @@
+# PPO on LunarLander-v3 (discrete). The 2024 script (CarRacing/main.py) used
+# PPO with n_steps=2048, batch_size=64, learning_rate=2.5e-4, 4 parallel envs
+# and net_arch pi=[64,64], vf=[64,64]; those values are reused here. Its
+# use_sde=True only applies to continuous actions and is dropped. gamma 0.999,
+# gae_lambda 0.98 and ent_coef 0.01 are the rl-baselines3-zoo LunarLander
+# values (episodes are long and the landing bonus arrives at the very end).
+env: LunarLander-v3
+algo: ppo
+timesteps: 1000000
+n_envs: 4
+eval_episodes: 20
+eval_seed_base: 10000
+algo_kwargs:
+  policy: MlpPolicy
+  learning_rate: 2.5e-4
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.999
+  gae_lambda: 0.98
+  ent_coef: 0.01
+  clip_range: 0.2
+  policy_kwargs:
+    net_arch:
+      pi: [64, 64]
+      vf: [64, 64]

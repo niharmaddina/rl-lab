@@ -1,0 +1,23 @@
+# experiment outputs (models, monitor logs); results/ PNGs and summary.json are tracked
+runs/
+*.zip
+*.monitor.csv
+*.log
+
+# environments
+venvs/
+venv/
+.venv/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# os / editors
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,13 @@
+# Exact versions used for every result in this repository (Python 3.11.3, macOS arm64).
+torch==2.14.1
+gymnasium==1.4.0
+stable_baselines3==2.9.0
+numpy==2.4.6
+pandas==3.0.6
+matplotlib==3.11.2
+PyYAML==6.0.3
+cloudpickle==3.1.2
+pytest==9.1.1
+# LunarLander-v3 only (gymnasium[box2d]); installed from wheels, no swig build was needed on macOS arm64.
+Box2D==2.3.10
+pygame-ce==2.5.8
