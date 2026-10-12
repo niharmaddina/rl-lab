@@ -5,6 +5,11 @@ Example::
 
     python -m rl_lab.summarize --runs-root runs --out results/summary.json \
         --hardware "Apple M1 Pro, CPU"
+
+Every row reports the final weights (``final``) and, for runs trained with
+``--eval-every``, the best checkpoint under periodic held-out evaluation
+(``best``, with the step at which it was saved). Runs without a best checkpoint
+show a dash in the ``best`` columns.
 """
 from __future__ import annotations
 
@@ -15,6 +20,18 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+
+
+def eval_blocks(record: dict) -> tuple[dict, dict | None, int | None, dict | None]:
+    """Return ``(final, best, best_step, best_fresh_seeds)`` from an eval.json record.
+
+    Accepts the layout written before ``--eval-every`` existed, where ``eval``
+    was the final block itself (then ``best`` is None).
+    """
+    ev = record["eval"]
+    if "final" in ev:
+        return ev["final"], ev.get("best"), ev.get("best_step"), ev.get("best_fresh_seeds")
+    return ev, None, None, None
 
 
 def collect(runs_root: Path) -> list[dict]:
@@ -32,9 +49,16 @@ def collect(runs_root: Path) -> list[dict]:
     for key, runs in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1], -kv[0][2])):
         env, algo, _ = key
         runs.sort(key=lambda r: r["seed"])
-        per_seed_means = np.array([r["eval"]["mean_return"] for r in runs])
-        pooled = np.concatenate([r["eval"]["returns"] for r in runs])
+        blocks = [eval_blocks(r) for r in runs]
+        finals = [b[0] for b in blocks]
+        per_seed_means = np.array([fin["mean_return"] for fin in finals])
+        pooled = np.concatenate([fin["returns"] for fin in finals])
         walls = [r["train_wall_time_s"] for r in runs]
+
+        has_best = all(b[1] is not None for b in blocks)
+        best_means = np.array([b[1]["mean_return"] for b in blocks]) if has_best else None
+        fresh = [b[3]["mean_return"] for b in blocks if b[3] is not None]
+
         entries.append({
             "env": env,
             "algo": algo,
@@ -42,21 +66,30 @@ def collect(runs_root: Path) -> list[dict]:
             "seeds": [r["seed"] for r in runs],
             "timesteps": runs[0]["timesteps"],
             "n_envs": runs[0]["n_envs"],
-            "eval_episodes_per_seed": runs[0]["eval"]["episodes"],
-            "eval_seed_base": runs[0]["eval"]["seeds"][0],
+            "eval_every": runs[0].get("eval_every", 0),
+            "eval_episodes_per_seed": finals[0]["episodes"],
+            "eval_seed_base": finals[0]["seeds"][0],
             "final_mean_return": float(per_seed_means.mean()),
             "final_std_return_across_seeds": float(per_seed_means.std()),
             "pooled_mean_return": float(pooled.mean()),
             "pooled_std_return": float(pooled.std()),
+            "best_mean_return": float(best_means.mean()) if has_best else None,
+            "best_std_return_across_seeds": float(best_means.std()) if has_best else None,
+            "best_fresh_seeds_mean_return": float(np.mean(fresh)) if has_best and len(fresh) == len(runs) else None,
             "per_seed": [
                 {
                     "seed": r["seed"],
-                    "mean_return": r["eval"]["mean_return"],
-                    "std_return": r["eval"]["std_return"],
+                    "mean_return": fin["mean_return"],
+                    "std_return": fin["std_return"],
+                    "best_mean_return": best["mean_return"] if best is not None else None,
+                    "best_std_return": best["std_return"] if best is not None else None,
+                    "best_step": step,
+                    "best_fresh_seeds_mean_return": fresh_b["mean_return"] if fresh_b is not None else None,
                     "train_wall_time_s": r["train_wall_time_s"],
+                    "in_training_eval_wall_time_s": r.get("in_training_eval_wall_time_s", 0.0),
                     "fps": r["fps"],
                 }
-                for r in runs
+                for r, (fin, best, step, fresh_b) in zip(runs, blocks)
             ],
             "wall_time_s_per_seed_mean": float(np.mean(walls)),
             "wall_time_s_total": float(np.sum(walls)),
@@ -66,16 +99,34 @@ def collect(runs_root: Path) -> list[dict]:
     return entries
 
 
+def format_step(step: int) -> str:
+    """45000 -> ``45k``, 1500 -> ``1.5k``, 800 -> ``800``."""
+    if step < 1000:
+        return str(step)
+    return f"{step / 1000:g}k"
+
+
 def markdown_table(entries: list[dict]) -> str:
     lines = [
-        "| Env | Algo | Seeds | Timesteps / seed | Eval return (mean +/- std across seeds) | Per-seed eval means | Wall time / seed |",
-        "|---|---|---|---|---|---|---|",
+        "| Env | Algo | Seeds | Timesteps / seed | Final return (mean +/- std across seeds) | Per-seed final "
+        "| Best-checkpoint return (mean +/- std across seeds) | Per-seed best @ step | Wall time / seed |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for e in entries:
         per_seed = ", ".join(f"{p['mean_return']:.1f}" for p in e["per_seed"])
+        if e.get("best_mean_return") is not None:
+            best = f"{e['best_mean_return']:.1f} +/- {e['best_std_return_across_seeds']:.1f}"
+            per_seed_best = ", ".join(
+                f"{p['best_mean_return']:.1f} @{format_step(p['best_step'])}" if p.get("best_mean_return") is not None
+                else "-"
+                for p in e["per_seed"]
+            )
+        else:
+            best = per_seed_best = "-"
         lines.append(
             f"| {e['env']} | {e['algo'].upper()} | {len(e['seeds'])} | {e['timesteps']:,} | "
             f"{e['final_mean_return']:.1f} +/- {e['final_std_return_across_seeds']:.1f} | {per_seed} | "
+            f"{best} | {per_seed_best} | "
             f"{e['wall_time_s_per_seed_mean'] / 60:.1f} min |"
         )
     return "\n".join(lines)

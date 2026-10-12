@@ -46,3 +46,20 @@ def test_plot_tiny_csv_writes_png(tmp_path: Path, capsys):
     summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert summary["n_seeds"] == 2 and summary["window"] == 3
     assert "final_mean_smoothed" in summary
+
+
+def test_best_checkpoint_tick_when_npz_present(tmp_path: Path, capsys):
+    for seed in range(2):
+        rows = [(10 * (i + 1) + seed, 10, 0.1 * (i + 1)) for i in range(6)]
+        write_monitor(tmp_path / f"seed_{seed}", rows)
+    # seed_0 has periodic evaluations: best mean (first occurrence of the max) at step 40.
+    np.savez(tmp_path / "seed_0" / "evaluations.npz", timesteps=[20, 40, 60],
+             results=[[5.0, 7.0], [9.0, 11.0], [10.0, 10.0]], ep_lengths=[[5, 7], [9, 11], [10, 10]])
+    assert plot.best_checkpoint(tmp_path / "seed_0") == (40, 10.0)
+    assert plot.best_checkpoint(tmp_path / "seed_1") is None
+
+    out = tmp_path / "curve.png"
+    rc = plot.main(["--runs", str(tmp_path / "seed_0"), str(tmp_path / "seed_1"), "--out", str(out), "--window", "3"])
+    assert rc == 0 and out.exists()
+    summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert summary["best_steps"] == {"seed_0": 40}

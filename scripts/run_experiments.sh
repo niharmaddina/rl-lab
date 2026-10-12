@@ -10,16 +10,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-python}"
 
-launch() {  # env algo timesteps seed [run-name]
+launch() {  # env algo timesteps seed [run-name] [eval-every]
   local out="runs/$1/${5:-$2}/seed_$4"
   mkdir -p "$out"
   nohup "$PY" -m rl_lab.train --env "$1" --algo "$2" --timesteps "$3" --seed "$4" --out "$out" \
-    > "$out/train.log" 2>&1 &
+    --eval-every "${6:-0}" > "$out/train.log" 2>&1 &
   echo "started $1 $2 seed=$4 -> $out (pid $!)"
 }
 
 main() {
-  for s in 0 1 2; do launch CartPole-v1 dqn 100000 "$s"; done
+  # CartPole 100k keeps the best checkpoint under held-out evaluation every 5k
+  # steps (the README's best columns). The other rows were run before
+  # --eval-every existed and show a dash there; pass a sixth argument to add it.
+  for s in 0 1 2; do launch CartPole-v1 dqn 100000 "$s" dqn 5000; done
   for s in 0 1 2; do launch CartPole-v1 dqn 50000  "$s" dqn-50k; done   # rl-zoo budget, same config
   for s in 0 1 2; do launch Acrobot-v1  dqn 100000 "$s"; done
   for s in 0 1 2; do launch LunarLander-v3 ppo "${LUNAR_TIMESTEPS:-1000000}" "$s"; done

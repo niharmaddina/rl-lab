@@ -10,6 +10,9 @@ vectorised sub-env). Episodes are ordered by wall-clock time, the x axis is the
 cumulative number of environment steps, and the y axis is a trailing moving
 average of the episode return. The thick line is the mean across seeds on a
 common timestep grid; the band is +/- one standard deviation across seeds.
+If a run directory holds ``evaluations.npz`` (written by ``train --eval-every``),
+a vertical tick in the seed's colour marks the step of its best checkpoint, i.e.
+the periodic held-out evaluation with the highest mean return.
 """
 from __future__ import annotations
 
@@ -62,6 +65,22 @@ def read_meta(run_dir: Path) -> dict:
     return {}
 
 
+def best_checkpoint(run_dir: Path) -> tuple[int, float] | None:
+    """``(timesteps, mean_return)`` of the best periodic evaluation in ``evaluations.npz``.
+
+    ``np.argmax`` returns the first index of the maximum, which is the same
+    checkpoint ``EvalCallback`` saved (it only overwrites ``best_model.zip`` on a
+    strict improvement). Returns None when the file is absent.
+    """
+    f = Path(run_dir) / "evaluations.npz"
+    if not f.exists():
+        return None
+    data = np.load(f)
+    means = np.asarray(data["results"], dtype=float).mean(axis=1)
+    i = int(np.argmax(means))
+    return int(data["timesteps"][i]), float(means[i])
+
+
 def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | None = None) -> dict:
     curves = []
     for d in run_dirs:
@@ -78,11 +97,25 @@ def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | No
 
     # Seeds are identified in the legend rather than by end-of-line labels:
     # converged seeds end at the same value and end labels would overprint.
+    best_steps: dict[str, int] = {}
     for i, (d, x, y) in enumerate(curves):
         color = SEED_COLORS[i % len(SEED_COLORS)]
         ax.plot(x, y, color=color, linewidth=1.2, alpha=0.9, label=d.name.replace("_", " "))
+        best = best_checkpoint(d)
+        if best is not None:
+            step, _ = best
+            best_steps[d.name] = step
+            y_at = float(np.interp(step, x, y))
+            # Vertical tick on the seed's own curve; the surface-coloured tick
+            # underneath is a 2px ring so it stays legible where curves cross.
+            ax.plot([step], [y_at], linestyle="none", marker="|", markersize=14, markeredgewidth=5.5,
+                    color=SURFACE, zorder=3)
+            ax.plot([step], [y_at], linestyle="none", marker="|", markersize=12, markeredgewidth=1.8,
+                    color=color, zorder=4)
 
     summary: dict = {"n_seeds": len(curves), "window": window}
+    if best_steps:
+        summary["best_steps"] = best_steps
     if len(curves) > 1:
         x_max = min(x[-1] for _, x, _ in curves)
         grid = np.linspace(0, x_max, 400)
@@ -92,8 +125,12 @@ def plot_runs(run_dirs: list[Path], out: Path, window: int = 20, title: str | No
         ax.fill_between(grid, mean - std, mean + std, color=TEXT_PRIMARY, alpha=0.08, linewidth=0)
         summary["final_mean_smoothed"] = float(mean[-1])
         summary["final_std_smoothed"] = float(std[-1])
+    if best_steps:
+        ax.plot([], [], linestyle="none", marker="|", markersize=10, markeredgewidth=1.8, color=TEXT_PRIMARY,
+                label="best checkpoint (held-out eval)")
     # Legend below the axes so it can never cover the data.
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=min(4, len(curves) + 1),
+    n_labels = len(curves) + (1 if len(curves) > 1 else 0) + (1 if best_steps else 0)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=min(5, n_labels),
               frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
 
     if title is None:
